@@ -1,0 +1,11 @@
+[package]
+name = "lok_viewer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "lok_viewer"
+crate-type = ["cdylib"]
+
+[dependencies]
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }

@@ -1,0 +1,32 @@
+# Visual Studio & MSBuild
+.vs/
+*.user
+*.userosv
+*.suo
+*.sln.docstates
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+
+# Native build output
+build-cpp/
+build/
+out/
+CMakeSettings.json
+
+# Rust build output
+target/
+**/*.rs.bk
+
+# Local tooling and test output
+.claude/
+lok_net/*.txt
+*.log
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store

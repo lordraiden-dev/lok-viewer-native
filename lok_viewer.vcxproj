@@ -1,0 +1,79 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- Builds the native lok_viewer.dll (same settings as CMakeLists.txt). Needs Visual Studio 2022 with
+     "Desktop development with C++". Output: build-cpp\<Configuration>\lok_viewer.dll, picked up by LokViewer.NET. -->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{A7900308-91E0-48DE-859C-32108117E571}</ProjectGuid>
+    <RootNamespace>lok_viewer</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" Condition="'$(MSBuildRuntimeType)' != 'Core'" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <!-- Default toolset of the installed Visual Studio: v143 (VS 2022), v145 (VS 2026) -->
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Debug'">true</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Release'">false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" Condition="'$(MSBuildRuntimeType)' != 'Core'" />
+  <PropertyGroup>
+    <OutDir>$(MSBuildThisFileDirectory)build-cpp\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildThisFileDirectory)build-cpp\obj\$(Configuration)\</IntDir>
+    <TargetName>lok_viewer</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <!-- Static CRT: no VC++ redistributable needed on the target machine -->
+      <RuntimeLibrary Condition="'$(Configuration)' == 'Debug'">MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeLibrary Condition="'$(Configuration)' == 'Release'">MultiThreaded</RuntimeLibrary>
+      <PreprocessorDefinitions Condition="'$(Configuration)' == 'Debug'">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)' == 'Release'">NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Optimization Condition="'$(Configuration)' == 'Release'">MaxSpeed</Optimization>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <OptimizeReferences Condition="'$(Configuration)' == 'Release'">true</OptimizeReferences>
+      <EnableCOMDATFolding Condition="'$(Configuration)' == 'Release'">true</EnableCOMDATFolding>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\lok_viewer.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\lok_viewer.h" />
+    <ClInclude Include="include\LibreOfficeKit\LibreOfficeKit.h" />
+    <ClInclude Include="include\LibreOfficeKit\LibreOfficeKitTypes.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="CMakeLists.txt" />
+  </ItemGroup>
+  <!--
+    The dotnet CLI (MSBuildRuntimeType=Core) has no C++ build tools. There these targets skip the project,
+    so "dotnet build Presentation.Report.sln" still works and LokViewer.NET uses an existing build-cpp DLL.
+    They are defined before Microsoft.Cpp.targets, so in Visual Studio / MSBuild.exe the real targets replace them.
+  -->
+  <Target Name="Build">
+    <Message Importance="high" Text="lok_viewer.vcxproj skipped: the dotnet CLI cannot build C++. Build it with Visual Studio or MSBuild.exe." />
+  </Target>
+  <Target Name="Rebuild" DependsOnTargets="Build" />
+  <Target Name="Clean" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" Condition="'$(MSBuildRuntimeType)' != 'Core'" />
+</Project>

@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- .NET 8, .NET 9 ve .NET 10 çoklu hedef desteği -->
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <!-- net10.0 needs MSBuild 18+ (Visual Studio 2026 or the .NET 10 SDK CLI); Visual Studio 2022 builds net8/net9 only -->
+    <TargetFrameworks Condition="$([MSBuild]::VersionGreaterThanOrEquals('$(MSBuildVersion)', '18.0'))">$(TargetFrameworks);net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <PackageId>LokViewer.NET</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Semih Yücel</Authors>
+    <Description>In-process LibreOfficeKit document viewer and high-fidelity converter bindings for .NET 8, 9, 10</Description>
+  </PropertyGroup>
+
+  <!--
+    Native lok_viewer.dll, chosen at build time (not at evaluation time) so a DLL built earlier in the same
+    solution build (lok_viewer.vcxproj) is found. Order: -p:LokNativeDll=<path>, C++ build of the current
+    configuration (build-cpp\<Configuration>), C++ Release build, Rust build (cargo, target\release).
+  -->
+  <Target Name="AddLokNativeDll" BeforeTargets="AssignTargetPaths;_GetPackageFiles">
+    <PropertyGroup>
+      <_LokNativeDll>$(LokNativeDll)</_LokNativeDll>
+      <_LokNativeDll Condition="'$(_LokNativeDll)' == '' And Exists('$(MSBuildThisFileDirectory)..\..\build-cpp\$(Configuration)\lok_viewer.dll')">$(MSBuildThisFileDirectory)..\..\build-cpp\$(Configuration)\lok_viewer.dll</_LokNativeDll>
+      <_LokNativeDll Condition="'$(_LokNativeDll)' == '' And Exists('$(MSBuildThisFileDirectory)..\..\build-cpp\Release\lok_viewer.dll')">$(MSBuildThisFileDirectory)..\..\build-cpp\Release\lok_viewer.dll</_LokNativeDll>
+      <_LokNativeDll Condition="'$(_LokNativeDll)' == '' And Exists('$(MSBuildThisFileDirectory)..\..\target\release\lok_viewer.dll')">$(MSBuildThisFileDirectory)..\..\target\release\lok_viewer.dll</_LokNativeDll>
+    </PropertyGroup>
+    <Warning Condition="'$(_LokNativeDll)' == '' Or !Exists('$(_LokNativeDll)')"
+             Text="lok_viewer.dll not found. Build tools\lok-viewer-native\lok_viewer.vcxproj (Presentation.Report.sln builds it first) or pass -p:LokNativeDll=&lt;path&gt;. LibreOfficeEngine.Initialize will fail without it." />
+    <ItemGroup Condition="'$(_LokNativeDll)' != '' And Exists('$(_LokNativeDll)')">
+      <!-- Native DLL'i otomatik çıktı dizinine kopyalar -->
+      <None Include="$(_LokNativeDll)" Link="lok_viewer.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" Pack="true" PackagePath="runtimes/win-x64/native/lok_viewer.dll" />
+    </ItemGroup>
+  </Target>
+
+</Project>
