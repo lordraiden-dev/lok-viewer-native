@@ -13,8 +13,8 @@ High-performance, in-process **LibreOfficeKit** native wrapper and managed **.NE
 `lok-viewer-native` exposes a robust C ABI over LibreOfficeKit (Windows x64) to enable:
 - In-process document loading and rendering for office documents (`DOCX`, `XLSX`, `PPTX`, `ODT`, `ODS`, `RTF`, etc.).
 - Direct tile rendering (`paintTile`) to memory buffers (BGRA) for smooth UI viewing.
-- Fast, high-fidelity export to PDF and other formats.
-- Complete thread safety: all LibreOfficeKit calls are synchronized with an internal mutex.
+- Fast, high-fidelity export to PDF and other formats without external process spawning (`soffice.exe`).
+- Complete thread safety: all LibreOfficeKit calls are synchronized internally with a native mutex.
 - Opaque document handles: safe against double-close or stale pointers without crashing the host process.
 - Isolated user profile support (`%LOCALAPPDATA%\LokViewer\lo-profile` or `%LOK_VIEWER_PROFILE%`) preventing desktop profile collisions and UI deadlocks.
 
@@ -74,14 +74,14 @@ Output: `target/release/lok_viewer.dll`
 
 ---
 
-## .NET Usage
+## Basic .NET Usage
 
 ### 1. Initialize Engine
 
 ```csharp
 using LokViewer;
 
-// Automatically locates LibreOffice at default path or custom folder:
+// Automatically locates LibreOffice at default path:
 LibreOfficeEngine.Initialize();
 
 // Or specify LibreOffice program path explicitly:
@@ -96,7 +96,7 @@ using var doc = LibreOfficeEngine.OpenDocument(@"C:\path\to\document.docx");
 int partCount = doc.PartCount;
 var (widthTwips, heightTwips) = doc.GetDocumentSizeTwips();
 
-// Render tile to BGRA buffer
+// Render tile to BGRA buffer (e.g. 800x600 px)
 int widthPx = 800;
 int heightPx = 600;
 byte[] pixelBuffer = new byte[widthPx * heightPx * 4];
@@ -107,7 +107,7 @@ doc.PaintTile(pixelBuffer, widthPx, heightPx, tilePosXTwips: 0, tilePosYTwips: 0
 ### 3. Convert Document to PDF
 
 ```csharp
-// Export directly to byte array
+// Export directly to byte array (in-memory)
 byte[] pdfBytes = doc.ExportToPdfBytes();
 File.WriteAllBytes("output.pdf", pdfBytes);
 
@@ -118,9 +118,159 @@ doc.SaveAs("output.pdf", "pdf");
 ### 4. Shutdown
 
 ```csharp
-// Automatically called on process exit or can be explicitly called:
+// Cleans up native engine resources on process termination:
 LibreOfficeEngine.Shutdown();
 ```
+
+---
+
+## Dependency Injection (DI) & ASP.NET Core Integration
+
+In web APIs, worker services, or enterprise .NET applications, you can wrap `LokViewer` inside a registered service to handle document conversions and rendering with proper lifecycle management.
+
+### 1. Define the Service Interface
+
+```csharp
+public interface ILibreOfficeConverter
+{
+    byte[] ConvertToPdf(string sourceFilePath);
+    Task<byte[]> ConvertToPdfAsync(Stream inputStream, string fileExtension, CancellationToken cancellationToken = default);
+}
+```
+
+### 2. Implement the Service
+
+```csharp
+using LokViewer;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+public class LibreOfficeConverter : ILibreOfficeConverter, IDisposable
+{
+    private readonly ILogger<LibreOfficeConverter> _logger;
+
+    public LibreOfficeConverter(ILogger<LibreOfficeConverter> logger, IHostApplicationLifetime lifetime)
+    {
+        _logger = logger;
+
+        // Initialize LibreOfficeKit engine once at startup
+        _logger.LogInformation("Initializing LibreOfficeKit native engine...");
+        LibreOfficeEngine.Initialize();
+
+        // Register clean shutdown when the host application stops
+        lifetime.ApplicationStopping.Register(() =>
+        {
+            _logger.LogInformation("Shutting down LibreOfficeKit native engine...");
+            LibreOfficeEngine.Shutdown();
+        });
+    }
+
+    public byte[] ConvertToPdf(string sourceFilePath)
+    {
+        using var doc = LibreOfficeEngine.OpenDocument(sourceFilePath);
+        return doc.ExportToPdfBytes();
+    }
+
+    public async Task<byte[]> ConvertToPdfAsync(Stream inputStream, string fileExtension, CancellationToken cancellationToken = default)
+    {
+        // Write incoming stream to temporary file
+        string tempInput = Path.Combine(Path.GetTempPath(), $"input_{Guid.NewGuid():N}{fileExtension}");
+        try
+        {
+            using (var fileStream = File.Create(tempInput))
+            {
+                await inputStream.CopyToAsync(fileStream, cancellationToken);
+            }
+
+            // LibreOfficeKit is thread-safe internally via native mutex
+            return await Task.Run(() => ConvertToPdf(tempInput), cancellationToken);
+        }
+        finally
+        {
+            if (File.Exists(tempInput))
+            {
+                try { File.Delete(tempInput); } catch { /* ignore */ }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        // Engine is closed via ApplicationStopping
+    }
+}
+```
+
+### 3. Register in `Program.cs`
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Register LibreOffice converter as a Singleton
+builder.Services.AddSingleton<ILibreOfficeConverter, LibreOfficeConverter>();
+
+var app = builder.Build();
+```
+
+### 4. Minimal API Endpoint Example
+
+Upload any supported document (`.docx`, `.xlsx`, `.pptx`, `.odt`) and stream back the converted PDF:
+
+```csharp
+app.MapPost("/api/documents/convert-to-pdf", async (IFormFile file, ILibreOfficeConverter converter) =>
+{
+    if (file == null || file.Length == 0)
+        return Results.BadRequest("No file uploaded.");
+
+    string extension = Path.GetExtension(file.FileName);
+    using var stream = file.OpenReadStream();
+
+    byte[] pdfBytes = await converter.ConvertToPdfAsync(stream, extension);
+
+    return Results.File(pdfBytes, "application/pdf", $"{Path.GetFileNameWithoutExtension(file.FileName)}.pdf");
+});
+
+app.Run();
+```
+
+### 5. Controller Example
+
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+public class DocumentController : ControllerBase
+{
+    private readonly ILibreOfficeConverter _converter;
+
+    public DocumentController(ILibreOfficeConverter converter)
+    {
+        _converter = converter;
+    }
+
+    [HttpPost("to-pdf")]
+    public async Task<IActionResult> ConvertToPdf(IFormFile file, CancellationToken ct)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest("Dosya yüklenmedi.");
+
+        using var stream = file.OpenReadStream();
+        byte[] pdfData = await _converter.ConvertToPdfAsync(stream, Path.GetExtension(file.FileName), ct);
+
+        return File(pdfData, "application/pdf", $"{Path.GetFileNameWithoutExtension(file.FileName)}.pdf");
+    }
+}
+```
+
+---
+
+## Important Operational Notes
+
+1. **Architecture (x64 Only):** The native `lok_viewer.dll` and LibreOffice are 64-bit binaries. Ensure your .NET project targets `x64`:
+   ```xml
+   <PlatformTarget>x64</PlatformTarget>
+   ```
+2. **Thread Safety:** LibreOfficeKit is not natively thread-safe; however, `lok-viewer-native` wraps every internal call in a global mutex (`std::mutex g_mutex`). Concurrent calls from multiple async tasks or threads are executed safely in queue without crashing or corrupting memory.
+3. **User Profile Isolation:** Each instance automatically uses an isolated profile under `%LOCALAPPDATA%\LokViewer\lo-profile` (or `%LOK_VIEWER_PROFILE%`), preventing lock conflicts with interactive LibreOffice desktop sessions.
 
 ---
 
