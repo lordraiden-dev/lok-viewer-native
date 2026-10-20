@@ -274,6 +274,37 @@ public class DocumentController : ControllerBase
 
 ---
 
+## Why lok-viewer-native?
+
+| Feature | `soffice.exe --headless` (CLI) | `lok-viewer-native` (In-Process) |
+|---|---|---|
+| **Execution Model** | Spawns heavy external OS processes per file | Direct, in-process C ABI calls |
+| **Performance & Latency** | High overhead (~1-3 seconds process startup) | Extremely fast (sub-millisecond once loaded) |
+| **Process Crash & Memory Leaks** | Orphaned `soffice.bin` processes freeze servers | Managed lifecycle, structured exception handling |
+| **Concurrency & Thread Safety** | Desktop profile lock collisions | Native mutex synchronization & profile isolation |
+| **Document Tiling / Live View** | Not supported | Direct BGRA tile rendering into memory buffers |
+| **.NET Integration** | Clunky `Process.Start` with string parsing | First-class C# async API with DI support |
+
+---
+
+## Supported Formats
+
+- **Text Documents:** `.docx`, `.doc`, `.odt`, `.rtf`, `.txt`
+- **Spreadsheets:** `.xlsx`, `.xls`, `.ods`, `.csv`
+- **Presentations:** `.pptx`, `.ppt`, `.odp`
+- **Export Targets:** `pdf`, `png`, `html`, etc.
+
+---
+
+## Author & Maintainer
+
+- **Author:** Semih Yücel
+- **GitHub:** [@lordraiden-dev](https://github.com/lordraiden-dev)
+- **Repository:** [lordraiden-dev/lok-viewer-native](https://github.com/lordraiden-dev/lok-viewer-native)
+
+---
+
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the [MIT License](LICENSE).
+Copyright (c) 2026 Semih Yücel.

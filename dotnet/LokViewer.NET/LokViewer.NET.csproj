@@ -12,7 +12,12 @@
     <PackageId>LokViewer.NET</PackageId>
     <Version>1.0.0</Version>
     <Authors>Semih Yücel</Authors>
-    <Description>In-process LibreOfficeKit document viewer and high-fidelity converter bindings for .NET 8, 9, 10</Description>
+    <Description>In-process LibreOfficeKit document viewer, tile renderer and high-fidelity PDF converter for .NET 8, 9, 10</Description>
+    <PackageTags>libreoffice;libreofficekit;lok;document-viewer;pdf-converter;docx-to-pdf;xlsx-to-pdf;tile-rendering;in-process;csharp;dotnet</PackageTags>
+    <PackageProjectUrl>https://github.com/lordraiden-dev/lok-viewer-native</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/lordraiden-dev/lok-viewer-native.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <!--
